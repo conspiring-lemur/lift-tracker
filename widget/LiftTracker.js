@@ -113,7 +113,7 @@ function baseWidget(url) {
   g.colors = [C.bgTop, C.bgBottom];
   g.locations = [0, 1];
   w.backgroundGradient = g;
-  w.setPadding(14, 14, 12, 14);
+  w.setPadding(16, 18, 14, 18);
   w.url = url || APP_URL;
   w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
   return w;
@@ -159,7 +159,7 @@ function buildWidget(data) {
   w.addSpacer(6);
 
   const title = w.addText(`${day} Day`);
-  title.font = Font.boldRoundedSystemFont(26);
+  title.font = Font.boldRoundedSystemFont(24);
   title.textColor = C.label;
   title.lineLimit = 1;
   title.minimumScaleFactor = 0.55;
@@ -173,7 +173,7 @@ function buildWidget(data) {
 
   const dates = new Set(workouts.map((x) => x.date));
   const strip = w.addImage(weekStrip(dates));
-  strip.imageSize = new Size(142, 28);
+  strip.imageSize = new Size(118, 24); // narrower than the content area so padding is never squeezed
   strip.centerAlignImage();
 
   w.addSpacer(6);
