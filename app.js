@@ -35,7 +35,7 @@ function seedState() {
   return {
     version: 1,
     userId: uid(), // sync-ready: lets a later version share progress with a gym buddy
-    settings: { defaultSets: 6, repMin: 6, repMax: 8, restSec: 120, periodized: false, blockStart: today() },
+    settings: { defaultSets: 6, repMin: 6, repMax: 8, restSec: 60, periodized: false, blockStart: today() },
     exercises, days, sessions: [], active: null,
   };
 }
@@ -43,7 +43,12 @@ function seedState() {
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const d = JSON.parse(raw); d.userId = d.userId || uid(); return d; }
+    if (raw) {
+      const d = JSON.parse(raw); d.userId = d.userId || uid();
+      // Rest now starts at 1 minute (Nate, 2026-11-20); move the old 2-minute default over once.
+      if (d.settings && !d.settings.rest60) { if (d.settings.restSec === 120) d.settings.restSec = 60; d.settings.rest60 = true; }
+      return d;
+    }
   } catch (e) { console.warn('load failed', e); }
   return seedState();
 }
@@ -291,7 +296,7 @@ function startRest() {
   const sec = S.settings.restSec;
   if (!sec) return;
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (e) {}
-  rest = { end: Date.now() + sec * 1000 };
+  rest = { end: Date.now() + sec * 1000, total: sec };
   clearInterval(restTick);
   restTick = setInterval(updateRest, 250);
   updateRest();
@@ -317,7 +322,7 @@ function updateRest() {
   el.hidden = false;
   if (left <= 0) { beep(); haptic(); stopRest(); toast('Rest is over. Next set.'); return; }
   el.querySelector('.rest-time').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-  el.querySelector('.ring-fg').style.strokeDasharray = `${Math.max(0, ((rest.end - Date.now()) / 1000 / S.settings.restSec) * 100)} 100`;
+  el.querySelector('.ring-fg').style.strokeDasharray = `${Math.max(0, ((rest.end - Date.now()) / 1000 / (rest.total || S.settings.restSec)) * 100)} 100`;
 }
 
 /* ---------- rendering ---------- */
@@ -337,6 +342,7 @@ const I = {
   bolt: svg('<path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z" fill="currentColor"/>'),
   up: svg('<path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'),
   down: svg('<path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'),
+  timer: svg('<circle cx="12" cy="13.5" r="7.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 9.5v4l2.5 1.5M9.5 3h5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'),
   share: svg('<path d="M12 3.5v11M8 7.5l4-4 4 4M7 11H5.5v9.5h13V11H17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'),
   trash: svg('<path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l1 13h9l1-13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'),
   done: svg('<circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'),
@@ -450,6 +456,21 @@ function progressionHint(e) {
   return `<button class="hint" data-act="apply-hint" data-w="${next}"><span class="hint-icon">${I.bolt}</span><span><b>Ready to go up</b><br>You hit ${max} on every set. Try ${fmt(next)} ${t.w}.</span><span class="hint-go">Apply</span></button>`;
 }
 
+// Percent of planned sets ticked off in this workout.
+function pctDone(s) {
+  const total = s.entries.reduce((n, e) => n + e.sets.length, 0);
+  return total ? Math.round((s.entries.reduce((n, e) => n + doneSets(e).length, 0) / total) * 100) : 0;
+}
+function progressBlock(s) {
+  const total = s.entries.reduce((n, e) => n + e.sets.length, 0), done = s.entries.reduce((n, e) => n + doneSets(e).length, 0);
+  const exDone = s.entries.filter((e) => e.sets.length && e.sets.every((x) => x.done)).length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  return `<div class="work-prog ${pct === 100 ? 'full' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+    <div class="wp-top"><span class="wp-pct">${pct}%<small> complete</small></span><span class="wp-sub">${done} of ${total} sets · ${exDone} of ${s.entries.length} exercises</span></div>
+    <div class="wp-track"><div class="wp-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+
 function renderWorkout() {
   const s = current(), day = dayById(s.dayId);
   const target = repTarget();
@@ -493,11 +514,14 @@ function renderWorkout() {
   }).join('');
   return `<header class="work-nav">
       <button class="nav-text ${ui.editing ? '' : 'danger'}" data-act="${ui.editing ? 'cancel-edit' : 'discard'}">${ui.editing ? 'Cancel' : 'Discard'}</button>
-      <div class="work-title"><span class="wt-name">${dayTitle(day)}</span><span class="wt-time" id="work-timer">${ui.editing ? fmtDate(s.date, { weekday: 'short', month: 'short', day: 'numeric' }) : timerText(s)}</span></div>
+      <div class="work-title"><span class="wt-name">${dayTitle(day)}</span><span class="wt-sub"><span class="wt-time" id="work-timer">${ui.editing ? fmtDate(s.date, { weekday: 'short', month: 'short', day: 'numeric' }) : timerText(s)}</span> · <span class="wt-pct">${pctDone(s)}%</span></span></div>
       <button class="nav-text bold" data-act="finish">${ui.editing ? 'Save' : 'Finish'}</button>
+      <span class="wn-bar ${pctDone(s) === 100 ? 'full' : ''}" style="width:${pctDone(s)}%"></span>
     </header>
+    ${progressBlock(s)}
     <div class="work-bar"><span class="work-goal">Goal: ${S.settings.periodized ? target.label : `${S.settings.defaultSets} sets × ${target.label}`}</span>
       ${ui.editing ? '' : `<button class="pause-btn ${s.pausedAt ? 'on' : ''}" data-act="${s.pausedAt ? 'unpause' : 'pause'}">${s.pausedAt ? `${I.play}Resume` : `${I.pause}Pause`}</button>`}</div>
+    ${ui.editing ? '' : `<div class="rest-set"><span class="rest-set-label">${I.timer}Rest between sets</span><span class="rest-step"><button data-act="rest-len" data-dir="-1" aria-label="Shorter rest" ${S.settings.restSec <= 30 ? 'disabled' : ''}>−</button><b id="rest-len">${fmtClock(S.settings.restSec * 1000)}</b><button data-act="rest-len" data-dir="1" aria-label="Longer rest" ${S.settings.restSec >= 600 ? 'disabled' : ''}>+</button></span></div>`}
     ${s.pausedAt ? `<button class="paused-card" data-act="unpause"><span class="paused-icon">${I.pause}</span><span class="row-text"><b>Workout Paused</b><span>The timer is stopped. Tap to resume, or tick a set and it resumes on its own.</span></span></button>` : ''}
     <div class="${s.pausedAt ? 'cards-paused' : ''}">${cards || '<p class="empty">No exercises yet.</p>'}</div>
     <button class="btn-tinted" data-act="add-ex">${I.plus}Add Exercise</button>`;
@@ -810,6 +834,10 @@ async function onClick(ev) {
     case 'day': if (ui.dayId !== d.id) { haptic(); ui.dayId = d.id; render(); } break;
     case 'pick': haptic(); ui.picks.has(d.id) ? ui.picks.delete(d.id) : ui.picks.add(d.id); savePicks(); render(); break;
     case 'clear-plan': if (await ask(`Clear the plan for ${dayById(ui.dayId)?.name} Day?`, 'Clear Plan', true)) { ui.picks.clear(); savePicks(); render(); } break;
+    case 'rest-len': {
+      S.settings.restSec = Math.min(600, Math.max(30, S.settings.restSec + 30 * Number(d.dir)));
+      haptic(); save(); render(); break;
+    }
     case 'pause': pauseWorkout(s); haptic(); save(); render(); break;
     case 'unpause': resumeWorkout(s); haptic(); save(); render(); break;
     case 'start':
@@ -1120,7 +1148,8 @@ document.addEventListener('focusin', (e) => { if (e.target.classList?.contains('
 document.getElementById('rest').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.rest === 'skip') stopRest();
-  if (b.dataset.rest === 'add' && rest) { rest.end += 30000; updateRest(); }
+  if (b.dataset.rest === 'add' && rest) { rest.end += 30000; rest.total += 30; updateRest(); }
+  if (b.dataset.rest === 'sub' && rest) { rest.end -= 30000; rest.total = Math.max(30, rest.total - 30); updateRest(); }
 });
 setInterval(() => {
   if (S.active && ui.view === 'workout' && !ui.editing) { const t = document.getElementById('work-timer'); if (t) t.textContent = timerText(S.active); }

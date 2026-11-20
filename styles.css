@@ -499,3 +499,31 @@ html[data-nav="pop"]::view-transition-new(root) { animation: vt-in-left 0.4s var
 .fb-pill svg { width: 13px; height: 13px; }
 .fb-pill.on { background: var(--blue); color: #fff; }
 .fb-pill .seg-dot { top: 3px; right: 3px; }
+
+/* Workout progress */
+.work-prog { margin: 6px 0 2px; padding: 14px 16px 16px; border-radius: 14px; background: var(--cell); }
+.wp-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.wp-pct { font-family: var(--rounded); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; color: var(--blue); }
+.wp-pct small { font-size: 15px; font-weight: 600; color: var(--label-2); letter-spacing: 0; }
+.wp-sub { font-size: 13px; color: var(--label-2); text-align: right; }
+.wp-track { height: 8px; border-radius: 4px; background: var(--fill-2); overflow: hidden; }
+.wp-fill { height: 100%; border-radius: 4px; background: var(--blue); transition: width 0.45s var(--ease); }
+.work-prog.full .wp-pct { color: var(--green); }
+.work-prog.full .wp-fill { background: var(--green); }
+
+/* Rest length stepper */
+.rest-set { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 8px 8px 8px 16px; border-radius: 14px; background: var(--cell); }
+.rest-set-label { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; color: var(--label); }
+.rest-set-label .i { width: 18px; height: 18px; color: var(--green); }
+.rest-step { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: var(--fill-2); }
+.rest-step button { width: 40px; height: 30px; border-radius: 7px; font-size: 20px; font-weight: 500; color: var(--label); }
+.rest-step button:active { background: var(--fill); }
+.rest-step button:disabled { color: var(--label-3); }
+.rest-step b { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 600; }
+
+/* Progress in the sticky workout header */
+.work-nav [data-act="finish"], .work-nav [data-act="save"] { justify-self: end; }
+.wt-sub { font-size: 12px; color: var(--label-2); font-variant-numeric: tabular-nums; }
+.wt-pct { color: var(--blue); font-weight: 600; }
+.wn-bar { position: absolute; left: 0; bottom: -0.5px; height: 3px; background: var(--blue); border-radius: 0 2px 2px 0; transition: width 0.45s var(--ease); }
+.wn-bar.full { background: var(--green); }
