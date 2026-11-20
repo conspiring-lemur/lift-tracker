@@ -641,9 +641,14 @@ function renderProgram() {
   };
   return `${largeTitle('Program')}
     <datalist id="ex-names">${Object.values(S.exercises).map((x) => `<option value="${esc(x.name)}">`).join('')}</datalist>
-    ${groupH('Days')}
-    <div class="group">${S.days.map(dayBlock).join('')}<button class="row link" data-act="add-day">${I.plus}Add Day</button></div>
-    ${groupF('Each day is a menu. You pick 5–7 exercises from it per workout.')}
+    ${groupH('Days', `<button class="text-btn hdr-btn" data-act="reorder-days">${ui.reorderDays ? 'Done' : 'Reorder'}</button>`)}
+    <div class="group">${ui.reorderDays
+      ? S.days.map((d, di) => `<div class="row day-row reorder"><span class="day-badge">${esc(d.name.slice(0, 1))}</span>
+          <span class="row-text"><span class="row-title">${esc(d.name)} Day</span><span class="row-sub">${di === 0 ? 'First in rotation' : `After ${esc(S.days[di - 1].name)}`}</span></span>
+          <button class="icon-btn sm" data-act="mv-day" data-d="${di}" data-dir="-1" aria-label="Move ${esc(d.name)} earlier" ${di ? '' : 'disabled'}>${I.up}</button>
+          <button class="icon-btn sm" data-act="mv-day" data-d="${di}" data-dir="1" aria-label="Move ${esc(d.name)} later" ${di < S.days.length - 1 ? '' : 'disabled'}>${I.down}</button></div>`).join('')
+      : `${S.days.map(dayBlock).join('')}<button class="row link" data-act="add-day">${I.plus}Add Day</button>`}</div>
+    ${groupF(ui.reorderDays ? 'Your rotation runs top to bottom, then starts over. After you finish a day, the next one down comes up.' : 'Each day is a menu. You pick 5–7 exercises from it per workout.')}
     ${groupH('Targets')}
     <div class="group">
       <label class="row field-row"><span class="row-title">Sets per exercise</span><input class="num-r" inputmode="numeric" data-sf="defaultSets" value="${st.defaultSets}"></label>
@@ -760,7 +765,7 @@ async function onClick(ev) {
   switch (a) {
     case 'tab':
       if (d.tab === ui.tab && ui.view !== 'workout') { scrollTo({ top: 0, behavior: 'smooth' }); break; }
-      nav('fade', () => { ui.tab = d.tab; ui.view = null; ui.editing = false; render(); scrollTo(0, 0); }); break;
+      nav('fade', () => { ui.tab = d.tab; ui.view = null; ui.editing = false; ui.reorderDays = false; render(); scrollTo(0, 0); }); break;
     case 'day': if (ui.dayId !== d.id) { haptic(); ui.dayId = d.id; ui.picks.clear(); render(); } break;
     case 'pick': haptic(); ui.picks.has(d.id) ? ui.picks.delete(d.id) : ui.picks.add(d.id); render(); break;
     case 'start':
@@ -821,6 +826,13 @@ async function onClick(ev) {
     case 'edit-session': nav('push', () => { save(); ui.editing = d.id; ui.view = 'workout'; render(); scrollTo(0, 0); }); break;
     case 'del-session': if (await ask('Delete this workout for good?', 'Delete', true)) { S.sessions = S.sessions.filter((x) => x.id !== d.id); save(); render(); } break;
     case 'toggle-day': ui.openDays.has(d.id) ? ui.openDays.delete(d.id) : ui.openDays.add(d.id); render(); break;
+    case 'reorder-days': ui.reorderDays = !ui.reorderDays; render(); break;
+    case 'mv-day': {
+      const i = +d.d, j = i + Number(d.dir);
+      if (j < 0 || j >= S.days.length) break;
+      [S.days[i], S.days[j]] = [S.days[j], S.days[i]];
+      haptic(); save(); render(); break;
+    }
     case 'mv': {
       const items = S.days[d.d].items, i = +d.i, j = i + Number(d.dir);
       [items[i], items[j]] = [items[j], items[i]]; save(); render(); break;

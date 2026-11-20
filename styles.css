@@ -469,3 +469,6 @@ html[data-nav="pop"]::view-transition-new(root) { animation: vt-in-left 0.4s var
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .sheet-link { display: block; margin: 14px auto 0; }
+.hdr-btn { font-size: 15px; font-weight: 400; padding: 0; text-transform: none; }
+.day-row.reorder { gap: 8px; }
+.day-row.reorder .day-badge { margin-right: 4px; }
