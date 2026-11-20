@@ -656,9 +656,10 @@ function renderProgram() {
     ${groupH('Backup')}
     <div class="group">
       <button class="row link" data-act="export">Save Backup…</button>
+      <button class="row link" data-act="widget">Update Home Screen Widget…</button>
       <label class="row link file-btn">Restore from Backup…<input type="file" accept="application/json,.json" data-act="import" hidden></label>
     </div>
-    ${groupF(`Your workouts are stored only on this iPhone. Save a backup to Files or iCloud Drive now and then.${S.lastBackup ? ` Last backup ${fmtDate(S.lastBackup)}.` : ''}`)}
+    ${groupF(`Your workouts are stored only on this iPhone. Save a backup to Files or iCloud Drive now and then. To refresh the widget, save its file to iCloud Drive › Scriptable and choose Replace.${S.lastBackup ? ` Last backup ${fmtDate(S.lastBackup)}.` : ''}`)}
     <div class="group"><button class="row center danger" data-act="reset">Erase All Data</button></div>
     <p class="fine">Lift Tracker · ${finished().length} workouts stored</p>`;
 }
@@ -690,7 +691,8 @@ function renderSheet() {
         <div class="tile"><span class="tile-k">Volume</span><span class="tile-n">${vol >= 10000 ? `${(vol / 1000).toFixed(1)}k` : Math.round(vol).toLocaleString()}</span><span class="tile-u">lbs</span></div>
       </div>
       ${(s.prs || []).length ? `${groupH('New Personal Records')}<div class="group">${s.prs.map((p) => `<div class="row static"><span class="pr-ico">${I.star}</span><span class="row-text"><span class="row-title">${esc(ex(p.exId).name)}</span><span class="row-sub">${p.items.map(esc).join(' · ')}</span></span></div>`).join('')}</div>` : ''}
-      <button class="btn-filled" data-act="close-sheet">Done</button>`;
+      <button class="btn-filled" data-act="close-sheet">Done</button>
+      <button class="text-btn sheet-link" data-act="widget">Update Home Screen Widget</button>`;
   } else if (sh.kind === 'add-ex') {
     const s = current(), day = dayById(s.dayId), have = new Set(s.entries.map((e) => e.exId));
     const fromDay = day ? day.items.filter((i) => !have.has(i.exId)).map((i) => i.exId) : [];
@@ -834,6 +836,7 @@ async function onClick(ev) {
       haptic(); ui.picks.add(id); save(); render(); toast(`Added ${d.name} to ${day.name} Day`); break;
     }
     case 'export': exportBackup(); break;
+    case 'widget': shareWidget(); break;
     case 'reset':
       if (await ask('Erase every logged workout and reset the program? This cannot be undone. Save a backup first if you might want it.', 'Erase everything', true)) { S = seedState(); save(); ui.tab = 'today'; ui.dayId = null; render(); }
       break;
@@ -920,6 +923,38 @@ async function exportBackup() {
   a.href = URL.createObjectURL(file); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   render();
+}
+
+// Small data file for the Scriptable home screen widget (widget/LiftTracker.js).
+// Widgets can't read this app's storage, so the app shares this file to iCloud Drive > Scriptable.
+function widgetData() {
+  const fin = finished().sort((a, b) => b.date.localeCompare(a.date) || b.start - a.start);
+  const t = repTarget();
+  return {
+    app: 'lift-tracker', version: 1, updated: Date.now(),
+    url: location.href.split('#')[0],
+    next: { name: dayById(nextDayId())?.name || '', target: `${S.settings.defaultSets} × ${t.min}–${t.max}` },
+    rotation: S.days.map((d) => d.name),
+    workouts: fin.slice(0, 60).map((s) => ({
+      date: s.date, day: dayById(s.dayId)?.name || s.dayId,
+      sets: s.entries.reduce((n, e) => n + doneSets(e).length, 0),
+      prs: (s.prs || []).reduce((n, p) => n + p.items.length, 0),
+    })),
+  };
+}
+
+async function shareWidget() {
+  const file = new File([JSON.stringify(widgetData())], 'lift-tracker-widget.json', { type: 'application/json' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      toast('Widget updated');
+      return;
+    }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
 function importBackup(file) {

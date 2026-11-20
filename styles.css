@@ -468,3 +468,4 @@ html[data-nav="pop"]::view-transition-new(root) { animation: vt-in-left 0.4s var
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.sheet-link { display: block; margin: 14px auto 0; }
