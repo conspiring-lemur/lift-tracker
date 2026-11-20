@@ -472,3 +472,30 @@ html[data-nav="pop"]::view-transition-new(root) { animation: vt-in-left 0.4s var
 .hdr-btn { font-size: 15px; font-weight: 400; padding: 0; text-transform: none; }
 .day-row.reorder { gap: 8px; }
 .day-row.reorder .day-badge { margin-right: 4px; }
+/* plans */
+.seg-btn { position: relative; }
+.seg-dot { position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--blue); }
+.plan-saved { display: inline-flex; align-items: center; gap: 3px; color: var(--green); font-weight: 600; }
+.plan-saved .i { width: 13px; height: 13px; }
+.cta-bar { display: flex; gap: 10px; }
+.btn-plain { flex: none; height: 50px; padding: 0 18px; border-radius: 14px; background: var(--cell); color: var(--red); font-size: 17px; font-weight: 600; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); }
+.btn-plain:active { opacity: 0.6; }
+/* pause */
+.work-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 2px; }
+.work-bar .work-goal { padding: 0; text-align: left; }
+.pause-btn { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 14px 0 11px; border-radius: 16px; background: color-mix(in srgb, var(--orange) 16%, transparent); color: var(--orange); font-size: 15px; font-weight: 600; }
+.pause-btn .i { width: 14px; height: 14px; }
+.pause-btn.on { background: var(--green); color: #fff; }
+.pause-btn:active { opacity: 0.6; }
+.paused-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; margin-bottom: 14px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, var(--orange) 14%, var(--cell)); animation: rise 0.35s var(--ease); }
+.paused-card b { font-size: 17px; }
+.paused-card .row-text span { font-size: 13px; color: var(--label-2); }
+.paused-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; flex: none; }
+.paused-icon .i { width: 16px; height: 16px; }
+.cards-paused { opacity: 0.55; transition: opacity 0.3s; }
+
+/* Full Body day: off-rotation pill under the day picker */
+.fb-pill { display: inline-flex; align-items: center; gap: 6px; position: relative; margin: 8px 0 2px; height: 30px; padding: 0 12px; border-radius: 15px; font-size: 13px; font-weight: 600; color: var(--blue); background: var(--fill-2); }
+.fb-pill svg { width: 13px; height: 13px; }
+.fb-pill.on { background: var(--blue); color: #fff; }
+.fb-pill .seg-dot { top: 3px; right: 3px; }
