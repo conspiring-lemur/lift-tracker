@@ -4,6 +4,9 @@
 //   1. Install Scriptable from the App Store, tap +, paste this script, name it "Lift Tracker".
 //   2. In the Lifts app: Program › Update Home Screen Widget… (or the link after you finish
 //      a workout) › Save to Files › iCloud Drive › Scriptable › Save (choose Replace if asked).
+//      No Scriptable folder in Files? Use On My iPhone › Scriptable instead, or make any folder
+//      (e.g. iCloud Drive › Lifts), save there, and add it in Scriptable › Settings ›
+//      File Bookmarks with the name "Lifts".
 //   3. Long-press your home screen › Edit › Add Widget › Scriptable › small › tap it ›
 //      Script: Lift Tracker. Tapping the widget opens the app.
 //
@@ -29,9 +32,14 @@ async function loadData() {
   const managers = [];
   try { managers.push(FileManager.iCloud()); } catch (e) { /* iCloud Drive is off */ }
   managers.push(FileManager.local());
-  let best = null;
+  // Optional: a folder picked in Scriptable › Settings › File Bookmarks, named "Lifts".
+  const dirs = [];
   for (const fm of managers) {
-    const dir = fm.documentsDirectory();
+    try { if (fm.bookmarkExists('Lifts')) dirs.push({ fm, dir: fm.bookmarkedPath('Lifts') }); } catch (e) { /* no bookmark */ }
+    dirs.push({ fm, dir: fm.documentsDirectory() });
+  }
+  let best = null;
+  for (const { fm, dir } of dirs) {
     let names = [];
     try { names = fm.listContents(dir); } catch (e) { continue; }
     for (const name of names) {
