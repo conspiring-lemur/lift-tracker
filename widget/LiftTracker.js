@@ -2,19 +2,33 @@
 //
 // Setup (once):
 //   1. Install Scriptable from the App Store, tap +, paste this script, name it "Lift Tracker".
-//   2. In the Lifts app: Program › Update Home Screen Widget… (or the link after you finish
-//      a workout) › Save to Files › iCloud Drive › Scriptable › Save (choose Replace if asked).
-//      No Scriptable folder in Files? Use On My iPhone › Scriptable instead, or make any folder
-//      (e.g. iCloud Drive › Lifts), save there, and add it in Scriptable › Settings ›
-//      File Bookmarks with the name "Lifts".
+//   2. In the Lifts app: Program › Home Screen Widget › turn on "Update when I finish".
+//      From then on, finishing a workout opens this script for a second with the workout data
+//      (scriptable:///run/Lift%20Tracker?data=...). It saves the data and you tap ◀ Lifts to go back.
+//      (Older way, still works: Program › Save Widget File Instead… › save to iCloud Drive › Scriptable.)
 //   3. Long-press your home screen › Edit › Add Widget › Scriptable › small › tap it ›
 //      Script: Lift Tracker. Tapping the widget opens the app.
 //
-// The widget shows your next day in the rotation, the rep target, this week's workouts as a
-// Monday-to-Sunday strip, and a nudge when it has not been refreshed since your last session.
+// The widget shows "Workout done" on a day you trained, and your next day in the rotation from
+// the next morning, plus this week's workouts as a Monday-to-Sunday strip.
 
 const APP_URL = 'https://conspiring-lemur.github.io/lift-tracker/';
 const FILE_PREFIX = 'lift-tracker-widget';
+
+// Run from the app's link: save the workout data where loadData() finds it.
+function saveFromApp() {
+  const raw = args.queryParameters && args.queryParameters.data;
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || data.app !== 'lift-tracker') return false;
+    const fm = FileManager.local();
+    fm.writeString(fm.joinPath(fm.documentsDirectory(), `${FILE_PREFIX}.json`), JSON.stringify(data));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 // Always dark, like Apple's Fitness widgets.
 const C = {
@@ -115,7 +129,9 @@ function baseWidget(url) {
   w.backgroundGradient = g;
   w.setPadding(16, 18, 14, 18);
   w.url = url || APP_URL;
-  w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
+  // Refresh every 30 minutes, and just after midnight so "Workout done" turns into the next day.
+  const now = new Date(), midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 1);
+  w.refreshAfterDate = new Date(Math.min(Date.now() + 30 * 60 * 1000, midnight.getTime()));
   return w;
 }
 
@@ -143,7 +159,7 @@ function emptyWidget() {
   t.textColor = C.label;
   t.minimumScaleFactor = 0.7;
   w.addSpacer(4);
-  const s = w.addText('In Lifts, tap Program › Update Home Screen Widget, then save to Scriptable.');
+  const s = w.addText('In Lifts, tap Program › Update Widget Now.');
   s.font = Font.systemFont(11);
   s.textColor = C.label2;
   s.minimumScaleFactor = 0.8;
@@ -154,20 +170,34 @@ function buildWidget(data) {
   const w = baseWidget(data.url);
   const workouts = data.workouts || [];
   const day = nextDay(data);
+  const doneToday = workouts[0] && workouts[0].date === isoDay(new Date());
 
-  header(w, 'UP NEXT', C.blue);
-  w.addSpacer(6);
-
-  const title = w.addText(`${day} Day`);
-  title.font = Font.boldRoundedSystemFont(24);
-  title.textColor = C.label;
-  title.lineLimit = 1;
-  title.minimumScaleFactor = 0.55;
-
-  const target = w.addText(`${data.next?.target || ''} reps`);
-  target.font = Font.mediumSystemFont(13);
-  target.textColor = C.label2;
-  target.lineLimit = 1;
+  if (doneToday) {
+    header(w, 'TODAY', C.green);
+    w.addSpacer(6);
+    const title = w.addText('Workout done ✅');
+    title.font = Font.boldRoundedSystemFont(20);
+    title.textColor = C.label;
+    title.lineLimit = 1;
+    title.minimumScaleFactor = 0.6;
+    const sub = w.addText(`${workouts[0].day} Day · next ${day}`);
+    sub.font = Font.mediumSystemFont(13);
+    sub.textColor = C.label2;
+    sub.lineLimit = 1;
+    sub.minimumScaleFactor = 0.8;
+  } else {
+    header(w, 'UP NEXT', C.blue);
+    w.addSpacer(6);
+    const title = w.addText(`${day} Day`);
+    title.font = Font.boldRoundedSystemFont(24);
+    title.textColor = C.label;
+    title.lineLimit = 1;
+    title.minimumScaleFactor = 0.55;
+    const target = w.addText(`${data.next?.target || ''} reps`);
+    target.font = Font.mediumSystemFont(13);
+    target.textColor = C.label2;
+    target.lineLimit = 1;
+  }
 
   w.addSpacer();
 
@@ -189,8 +219,8 @@ function buildWidget(data) {
   foot.addSpacer();
   const last = workouts[0];
   const lastPr = workouts.find((x) => x.prs > 0);
-  // Stale if the newest file is older than 4 days: the next day may be out of date.
-  if (Date.now() - (data.updated || 0) > 4 * 864e5) {
+  // Stale if nothing has arrived for 2 weeks: a workout may have been missed.
+  if (Date.now() - (data.updated || 0) > 14 * 864e5) {
     const r = foot.addText('Open to refresh');
     r.font = Font.semiboldSystemFont(10);
     r.textColor = C.orange;
@@ -207,8 +237,13 @@ function buildWidget(data) {
   return w;
 }
 
+const saved = saveFromApp();
 const data = await loadData();
 const widget = data ? buildWidget(data) : emptyWidget();
-if (config.runsInWidget) Script.setWidget(widget);
-else await widget.presentSmall();
+if (config.runsInWidget) {
+  Script.setWidget(widget);
+} else {
+  // Opened from the app (saved === true) or by hand: show a preview of what the widget will show.
+  await widget.presentSmall();
+}
 Script.complete();

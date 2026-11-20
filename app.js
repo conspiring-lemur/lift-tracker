@@ -722,13 +722,19 @@ function renderProgram() {
       ${st.periodized ? `<label class="row field-row"><span class="row-title">Block started</span><input type="date" class="date-r" data-sf="blockStart" value="${st.blockStart}"></label>` : ''}
     </div>
     ${groupF(st.periodized ? `${repTarget().label}. Weeks 1–4 use 4–6 reps, weeks 5–8 use 6–8.` : 'Set the rest timer to 0 to turn it off. The 8-week block switches between 4–6 and 6–8 reps.')}
+    ${groupH('Home Screen Widget')}
+    <div class="group">
+      <label class="row field-row"><span class="row-title">Update when I finish</span><input type="checkbox" class="switch" data-sf="widgetAuto" ${st.widgetAuto ? 'checked' : ''}></label>
+      <button class="row link" data-act="widget">Update Widget Now</button>
+      <button class="row link" data-act="widget-file">Save Widget File Instead…</button>
+    </div>
+    ${groupF('When you finish a workout, Scriptable opens for a second and saves it, then tap ◀ Lifts in the top-left corner to come back. Needs the Lift Tracker script in Scriptable. The widget shows "Workout done" that day and your next workout from the next morning.')}
     ${groupH('Backup')}
     <div class="group">
       <button class="row link" data-act="export">Save Backup…</button>
-      <button class="row link" data-act="widget">Update Home Screen Widget…</button>
       <label class="row link file-btn">Restore from Backup…<input type="file" accept="application/json,.json" data-act="import" hidden></label>
     </div>
-    ${groupF(`Your workouts are stored only on this iPhone. Save a backup to Files or iCloud Drive now and then. To refresh the widget, save its file to iCloud Drive › Scriptable and choose Replace.${S.lastBackup ? ` Last backup ${fmtDate(S.lastBackup)}.` : ''}`)}
+    ${groupF(`Your workouts are stored only on this iPhone. Save a backup to Files or iCloud Drive now and then.${S.lastBackup ? ` Last backup ${fmtDate(S.lastBackup)}.` : ''}`)}
     <div class="group"><button class="row center danger" data-act="reset">Erase All Data</button></div>
     <p class="fine">Lift Tracker · ${finished().length} workouts stored</p>`;
 }
@@ -762,7 +768,7 @@ function renderSheet() {
       ${(s.prs || []).length ? `${groupH('New Personal Records')}<div class="group">${s.prs.map((p) => `<div class="row static"><span class="pr-ico">${I.star}</span><span class="row-text"><span class="row-title">${esc(ex(p.exId).name)}</span><span class="row-sub">${p.items.map(esc).join(' · ')}</span></span></div>`).join('')}</div>` : ''}
       <button class="btn-filled" data-act="close-sheet">Done</button>
       <button class="btn-tinted" data-act="share-card" data-id="${s.id}">${I.share}Share with a Friend</button>
-      <button class="text-btn sheet-link" data-act="widget">Update Home Screen Widget</button>`;
+      ${S.settings.widgetAuto ? '' : '<button class="text-btn sheet-link" data-act="widget">Update Home Screen Widget</button>'}`;
   } else if (sh.kind === 'add-ex') {
     const s = current(), day = dayById(s.dayId), have = new Set(s.entries.map((e) => e.exId));
     const fromDay = day ? day.items.filter((i) => !have.has(i.exId)).map((i) => i.exId) : [];
@@ -890,7 +896,9 @@ async function onClick(ev) {
     case 'add-ex-pick': s.entries.push(makeEntry(d.id, s.dayId)); ui.sheet = null; save(); render(); scrollTo(0, document.body.scrollHeight); break;
     case 'finish':
       if (!ui.editing && !s.entries.some((e) => e.sets.some((x) => x.done)) && !(await ask('No sets are ticked yet. Finish anyway?', 'Finish'))) return;
-      haptic(); nav('pop', finishWorkout); break;
+      haptic();
+      if (!ui.editing && S.settings.widgetAuto) { finishWorkout(); sendToScriptable(); } else nav('pop', finishWorkout);
+      break;
     case 'discard': if (await ask('Discard this workout? Nothing from it will be saved.', 'Discard', true)) { nav('pop', () => { S.active = null; ui.view = null; stopRest(); save(); render(); }); } break;
     case 'cancel-edit': nav('pop', () => { S = load(); ui.editing = false; ui.view = null; ui.tab = 'history'; render(); }); break;
     case 'close-sheet': closeSheet(false); break;
@@ -921,7 +929,8 @@ async function onClick(ev) {
       haptic(); ui.picks.add(id); savePicks(); render(); toast(`Added ${d.name} to ${day.name} Day`); break;
     }
     case 'export': exportBackup(); break;
-    case 'widget': shareWidget(); break;
+    case 'widget': sendToScriptable(); break;
+    case 'widget-file': shareWidget(); break;
     case 'share-card': shareCard(S.sessions.find((x) => x.id === d.id)); break;
     case 'reset':
       if (await ask('Erase every logged workout and reset the program? This cannot be undone. Save a backup first if you might want it.', 'Erase everything', true)) { S = seedState(); save(); ui.tab = 'today'; ui.dayId = null; render(); }
@@ -946,6 +955,7 @@ function onChange(ev) {
   if (d.sf) {
     const k = d.sf;
     if (k === 'periodized') S.settings.periodized = el.checked;
+    else if (k === 'widgetAuto') S.settings.widgetAuto = el.checked;
     else if (k === 'blockStart') S.settings.blockStart = el.value || today();
     else { const n = num(el.value); if (n != null && n >= 0) S.settings[k] = Math.round(n); }
     save(); render(); return;
@@ -1021,12 +1031,17 @@ function widgetData() {
     url: location.href.split('#')[0],
     next: { name: dayById(nextDayId())?.name || '', target: `${S.settings.defaultSets} × ${t.min}–${t.max}` },
     rotation: S.days.map((d) => d.name),
-    workouts: fin.slice(0, 60).map((s) => ({
+    workouts: fin.slice(0, 14).map((s) => ({
       date: s.date, day: dayById(s.dayId)?.name || s.dayId,
       sets: s.entries.reduce((n, e) => n + doneSets(e).length, 0),
       prs: (s.prs || []).reduce((n, p) => n + p.items.length, 0),
     })),
   };
+}
+
+// Hands the data straight to the Scriptable script (it saves it for the widget). Must run inside a tap.
+function sendToScriptable() {
+  location.href = `scriptable:///run/${encodeURIComponent('Lift Tracker')}?data=${encodeURIComponent(JSON.stringify(widgetData()))}`;
 }
 
 async function shareWidget() {

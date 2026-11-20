@@ -18,10 +18,10 @@ When you change a file, bump `VERSION` in `sw.js` so installed copies pick up th
 
 ## Home screen widget (Scriptable)
 
-`widget/LiftTracker.js` is a small, square widget for the [Scriptable](https://scriptable.app) app. It shows the next day in your rotation, the rep target, this week's workouts and a PR star.
+`widget/LiftTracker.js` is a small, square widget for the [Scriptable](https://scriptable.app) app. It shows "Workout done ✅" on a day you trained, then the next day in your rotation from the next morning, plus this week's workouts and a PR star.
 
-1. In Scriptable, tap **+**, paste the script and name it "Lift Tracker".
-2. In Lifts, tap **Program › Update Home Screen Widget…**, then **Save to Files › iCloud Drive › Scriptable** (choose **Replace** if asked). The workout summary has the same link.
+1. In Scriptable, tap **+**, paste the script and name it exactly "Lift Tracker".
+2. In Lifts, turn on **Program › Home Screen Widget › Update when I finish**. Finishing a workout then opens `scriptable:///run/Lift%20Tracker?data=…`; the script saves the data and you tap **◀ Lifts** to go back. **Update Widget Now** does the same by hand, and **Save Widget File Instead…** is the old Files route.
 3. Add a small Scriptable widget to the home screen, tap it while editing and choose the "Lift Tracker" script.
 
-Repeat step 2 after a workout to refresh it. Tapping the widget opens the app.
+Tapping the widget opens the app.
