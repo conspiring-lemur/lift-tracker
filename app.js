@@ -1312,6 +1312,6 @@ if (S.active) ui.view = 'workout';
 render();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 }
 if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
