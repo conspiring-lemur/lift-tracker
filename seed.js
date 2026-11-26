@@ -100,7 +100,7 @@ window.SEED_PROGRAM = [
 // Row: [name, load type]
 window.SUGGESTIONS = {
   back: [['Pull ups (unassisted)', 'bw'], ['T-bar row', 'total'], ['Straight-arm cable pulldown', 'total'], ['Chest-supported row', 'hand'], ['Back extensions', 'bw'], ['Rack pulls', 'total']],
-  leg: [['Romanian deadlift', 'total'], ['Bulgarian split squat', 'hand'], ['Goblet squat', 'total'], ['Step-ups', 'hand'], ['Seated calf raises', 'total'], ['Hanging leg raises', 'bw']],
+  leg: [['Romanian deadlift', 'total'], ['Goblet squat', 'total'], ['Step-ups', 'hand'], ['Seated calf raises', 'total'], ['Hanging leg raises', 'bw']],
   shoulder: [['Barbell overhead press', 'total'], ['Arnold press', 'hand'], ['Upright rows', 'total'], ['Dumbbell shrugs', 'hand'], ['Rear delt cable fly', 'total']],
   chest: [['Cable crossover', 'total'], ['Dumbbell flys', 'hand'], ['Decline bench', 'total'], ['Weighted dips', 'bw'], ['Dumbbell pullover', 'total'], ['Ab wheel rollout', 'bw']],
   arm: [['Preacher curls', 'total'], ['Overhead tricep extension', 'total'], ['Concentration curls', 'hand'], ['EZ-bar curls', 'total'], ['Rope pushdowns', 'total'], ['Reverse curls', 'total']],

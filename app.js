@@ -40,6 +40,57 @@ function seedState() {
   };
 }
 
+// One-time exercise cleanup (Nate, 2026-11-26). Ids stay the same for renames, so history and PRs
+// carry over; merges move every logged entry onto the kept exercise. Also applied to fresh installs.
+function cleanupExercises(d) {
+  d.migrations = d.migrations || [];
+  if (d.migrations.includes('cleanup-2026-11-26')) return d;
+  const exs = d.exercises || {}, days = d.days || [];
+  const renames = {
+    'hamstring-curls': ['Hamstring curls', 'Lying hamstring curls (on belly)'],
+    'seated-leg-curls': ['Seated leg curls', 'Seated hamstring curls'],
+    'triceps-cable-pulls': ['Triceps cable pulls', 'Triceps cable pulls (both arms)'],
+    'cable-tricep-push-down': ['Cable tricep push down', 'Cable tricep push down (both arms)'],
+    'bench-leg-lunges': ['Bench leg lunges', 'Bulgarian split squats'],
+  };
+  for (const [id, [from, to]] of Object.entries(renames)) if (exs[id] && exs[id].name === from) exs[id].name = to;
+  const mergeInto = (from, to) => {
+    if (!exs[from]) return;
+    if (!exs[to]) exs[to] = { ...exs[from], id: to };
+    const swap = (list) => { if (!list) return list; const out = []; for (const id of list.map((x) => (x === from ? to : x))) if (!out.includes(id)) out.push(id); return out; };
+    for (const day of days) {
+      let kept = false; // keep one row of the merged exercise per day
+      day.items = day.items.map((it) => (it.exId === from ? { ...it, exId: to } : it)).filter((it) => it.exId !== to || (!kept && (kept = true)));
+    }
+    for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) {
+      for (const e of sess.entries || []) if (e.exId === from) e.exId = to;
+      for (const pr of sess.prs || []) if (pr.exId === from) pr.exId = to;
+    }
+    for (const k of Object.keys(d.plans || {})) d.plans[k] = swap(d.plans[k]);
+    delete exs[from];
+  };
+  // Fly machine warm-up gets its own exercise, so it no longer shares a row (and a tick) with the working sets.
+  const chest = days.find((x) => x.id === 'chest');
+  if (exs['fly-machine'] && chest && chest.items.some((it) => it.exId === 'fly-machine' && it.warmup)) {
+    exs['fly-machine-warm-up'] = { id: 'fly-machine-warm-up', name: 'Fly machine (warm-up)', type: exs['fly-machine'].type, note: '' };
+    const it = chest.items.find((x) => x.exId === 'fly-machine' && x.warmup);
+    it.exId = 'fly-machine-warm-up';
+  }
+  mergeInto('treadmill-incline', 'cardio-warm-up');
+  mergeInto('incline-chest-press', 'incline-dumbbell-press');
+  // Single-arm triceps cable pulls were a note on the two-arm version; now their own exercise, weight per arm.
+  if (exs['triceps-cable-pulls'] && !exs['single-arm-triceps-cable-pulls']) {
+    exs['single-arm-triceps-cable-pulls'] = { id: 'single-arm-triceps-cable-pulls', name: 'Single-arm triceps cable pulls', type: 'hand', note: '' };
+    if (/single arm/i.test(exs['triceps-cable-pulls'].note || '')) exs['triceps-cable-pulls'].note = '';
+    for (const day of days) {
+      const i = day.items.findIndex((x) => x.exId === 'triceps-cable-pulls');
+      if (i >= 0) day.items.splice(i + 1, 0, { exId: 'single-arm-triceps-cable-pulls', baseline: 40, warmup: false });
+    }
+  }
+  d.migrations.push('cleanup-2026-11-26');
+  return d;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
@@ -47,10 +98,10 @@ function load() {
       const d = JSON.parse(raw); d.userId = d.userId || uid();
       // Rest now starts at 1 minute (Nate, 2026-11-20); move the old 2-minute default over once.
       if (d.settings && !d.settings.rest60) { if (d.settings.restSec === 120) d.settings.restSec = 60; d.settings.rest60 = true; }
-      return d;
+      return cleanupExercises(d);
     }
   } catch (e) { console.warn('load failed', e); }
-  return seedState();
+  return cleanupExercises(seedState());
 }
 
 let S = load();
@@ -942,7 +993,7 @@ async function onClick(ev) {
     case 'widget-file': shareWidget(); break;
     case 'share-card': shareCard(S.sessions.find((x) => x.id === d.id)); break;
     case 'reset':
-      if (await ask('Erase every logged workout and reset the program? This cannot be undone. Save a backup first if you might want it.', 'Erase everything', true)) { S = seedState(); save(); ui.tab = 'today'; ui.dayId = null; render(); }
+      if (await ask('Erase every logged workout and reset the program? This cannot be undone. Save a backup first if you might want it.', 'Erase everything', true)) { S = cleanupExercises(seedState()); save(); ui.tab = 'today'; ui.dayId = null; render(); }
       break;
   }
 }
@@ -1155,7 +1206,7 @@ function importBackup(file) {
       if (!data.exercises || !data.days || !Array.isArray(data.sessions)) throw new Error('not a backup');
       ask(`Restore this backup with ${data.sessions.length} workouts? It replaces what is on this phone now.`, 'Restore', true).then((yes) => {
         if (!yes) return;
-        S = data; save(); ui.tab = 'today'; ui.dayId = null; render(); toast('Backup restored');
+        S = cleanupExercises(data); save(); ui.tab = 'today'; ui.dayId = null; render(); toast('Backup restored');
       });
     } catch (e) { toast('That file is not a Lift Tracker backup.'); }
   };
