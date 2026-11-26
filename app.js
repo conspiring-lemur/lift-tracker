@@ -46,24 +46,28 @@ function cleanupExercises(d) {
   d.migrations = d.migrations || [];
   if (!d.migrations.includes('cleanup-2026-11-26')) cleanupA(d);
   if (!d.migrations.includes('renames-2026-11-26b')) renamesB(d);
+  if (!d.migrations.includes('renames-2026-11-26c')) renamesB(d, 'renames-2026-11-26c');
   return d;
 }
 
 // Clearer names Nate approved (2026-11-26). Same ids, so history and PRs stay attached.
-function renamesB(d) {
+function renamesB(d, flag = 'renames-2026-11-26b') {
   const exs = d.exercises || {};
   const renames = {
     'quad-extensions': ['Quad extensions', 'Leg extensions'],
     'calf-extensions': ['Calf extensions', 'Calf raises'],
     'standing-rows': ['Standing rows', 'Upright rows'],
     'y-lateral-dumbbell-raises': ['Y lateral dumbbell raises', 'Y raises'],
+    'cross-chest-machine': ['Cross-chest machine', 'Single-arm cross-body chest press'],
+    'supine-bench': ['Supine bench', 'Iso-lateral bench press'],
+    'iso-lateral-supine-incline-press': ['Iso-lateral supine incline press', 'Iso-lateral incline press'],
   };
   for (const [id, [from, to]] of Object.entries(renames)) if (exs[id] && exs[id].name === from) exs[id].name = to;
   // Supine bench is a bench machine with a weighted arm on each side, so log it per side.
   if (exs['supine-bench'] && exs['supine-bench'].type === 'hand') exs['supine-bench'].type = 'side';
   // If "Upright rows" was already added from Suggestions, fold it into the renamed Standing rows.
   if (exs['upright-rows'] && exs['standing-rows']) mergeExercise(d, 'upright-rows', 'standing-rows');
-  d.migrations.push('renames-2026-11-26b');
+  d.migrations.push(flag);
 }
 
 // Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
