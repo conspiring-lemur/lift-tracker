@@ -416,7 +416,14 @@ function renderToday() {
       ${counts[it.exId] ? `<span class="row-trail">${counts[it.exId]}×</span>` : ''}
     </button>`;
   };
-  const warm = day.items.filter((i) => i.warmup), work = day.virtual ? day.items.filter((i) => !i.warmup) : order(day.items.filter((i) => !i.warmup));
+  const warm = day.items.filter((i) => i.warmup), all = day.items.filter((i) => !i.warmup);
+  // Most Selected: picked in at least a quarter of this day's workouts, and more than once after
+  // the first workout (max 8), most picked first. Everything else is Least Selected.
+  const nDay = finished().filter((s) => s.dayId === day.id).length;
+  const bar = nDay < 2 ? 1 : Math.max(2, Math.ceil(nDay / 4));
+  const fav = order(all.filter((it) => (counts[it.exId] || 0) >= bar)).slice(0, 8);
+  const favIds = new Set(fav.map((it) => it.exId));
+  const rest = order(all.filter((it) => !favIds.has(it.exId)));
   const nWork = [...ui.picks].filter((id) => !day.items.find((i) => i.exId === id)?.warmup).length;
   const names = new Set(Object.values(S.exercises).filter((x) => day.items.some((i) => i.exId === x.id)).map((x) => x.name.toLowerCase()));
   const ideas = (window.SUGGESTIONS?.[day.id] || []).filter(([n]) => !names.has(n.toLowerCase()));
@@ -427,8 +434,10 @@ function renderToday() {
     <div class="seg ${S.days.length > 5 ? 'scroll' : ''}" role="tablist">${S.days.map((d) => `<button role="tab" class="seg-btn ${d.id === day.id ? 'on' : ''}" aria-selected="${d.id === day.id}" data-act="day" data-id="${esc(d.id)}">${esc(d.name)}${S.plans?.[d.id]?.length && d.id !== day.id ? '<i class="seg-dot" aria-label="planned"></i>' : ''}</button>`).join('')}</div>
     <button class="fb-pill ${day.virtual ? 'on' : ''}" data-act="day" data-id="${day.virtual ? esc(nextDayId()) : FULL}" aria-pressed="${!!day.virtual}">${I.bolt}<span>${day.virtual ? 'Back to your rotation' : 'Full Body Day'}</span>${S.plans?.[FULL]?.length && !day.virtual ? '<i class="seg-dot" aria-label="planned"></i>' : ''}</button>
     ${warm.length ? `${groupH('Warm-up')}<div class="group">${warm.map(row).join('')}</div>` : ''}
-    ${day.virtual ? '' : groupH('Exercises', `${nWork} of 5–7`)}
-    ${day.virtual ? [...S.days.map((d) => d.name), 'Other'].filter((g, i, all) => all.indexOf(g) === i && work.some((it) => it.group === g)).map((g, gi) => `${groupH(g, gi ? '' : `${nWork} of 5–7`)}<div class="group">${work.filter((it) => it.group === g).map(row).join('')}</div>`).join('') : `<div class="group">${work.map(row).join('')}</div>`}
+    ${fav.length ? `${groupH('Most Selected', `${nWork} of 5–7`)}<div class="group">${fav.map(row).join('')}</div>` : ''}
+    ${day.virtual
+    ? [...S.days.map((d) => d.name), 'Other'].filter((g, i, gs) => gs.indexOf(g) === i && rest.some((it) => it.group === g)).map((g, gi) => `${groupH(esc(g), gi || fav.length ? '' : `${nWork} of 5–7`)}<div class="group">${rest.filter((it) => it.group === g).map(row).join('')}</div>`).join('')
+    : rest.length ? `${groupH(fav.length ? 'Least Selected' : 'Exercises', fav.length ? '' : `${nWork} of 5–7`)}<div class="group">${rest.map(row).join('')}</div>` : ''}
     ${groupF(n ? `<span class="plan-saved">${I.check}Plan saved.</span> It stays here until you start this workout.` : 'Pick exercises now to plan ahead. Your plan is saved for this day.')}
     ${groupH('New Exercise')}
     <form class="group form-row" data-form="today-new">

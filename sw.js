@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Bump VERSION whenever a file changes so phones pick up the update.
-const VERSION = 'lifts-v8';
+const VERSION = 'lifts-v9';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'seed.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
