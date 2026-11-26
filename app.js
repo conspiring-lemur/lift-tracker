@@ -44,7 +44,47 @@ function seedState() {
 // carry over; merges move every logged entry onto the kept exercise. Also applied to fresh installs.
 function cleanupExercises(d) {
   d.migrations = d.migrations || [];
-  if (d.migrations.includes('cleanup-2026-11-26')) return d;
+  if (!d.migrations.includes('cleanup-2026-11-26')) cleanupA(d);
+  if (!d.migrations.includes('renames-2026-11-26b')) renamesB(d);
+  return d;
+}
+
+// Clearer names Nate approved (2026-11-26). Same ids, so history and PRs stay attached.
+function renamesB(d) {
+  const exs = d.exercises || {};
+  const renames = {
+    'quad-extensions': ['Quad extensions', 'Leg extensions'],
+    'calf-extensions': ['Calf extensions', 'Calf raises'],
+    'standing-rows': ['Standing rows', 'Upright rows'],
+    'y-lateral-dumbbell-raises': ['Y lateral dumbbell raises', 'Y raises'],
+  };
+  for (const [id, [from, to]] of Object.entries(renames)) if (exs[id] && exs[id].name === from) exs[id].name = to;
+  // Supine bench is a bench machine with a weighted arm on each side, so log it per side.
+  if (exs['supine-bench'] && exs['supine-bench'].type === 'hand') exs['supine-bench'].type = 'side';
+  // If "Upright rows" was already added from Suggestions, fold it into the renamed Standing rows.
+  if (exs['upright-rows'] && exs['standing-rows']) mergeExercise(d, 'upright-rows', 'standing-rows');
+  d.migrations.push('renames-2026-11-26b');
+}
+
+// Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
+function mergeExercise(d, from, to) {
+  const exs = d.exercises;
+  if (!exs[from]) return;
+  if (!exs[to]) exs[to] = { ...exs[from], id: to };
+  const swap = (list) => { if (!list) return list; const out = []; for (const id of list.map((x) => (x === from ? to : x))) if (!out.includes(id)) out.push(id); return out; };
+  for (const day of d.days || []) {
+    let kept = false; // keep one row of the merged exercise per day
+    day.items = day.items.map((it) => (it.exId === from ? { ...it, exId: to } : it)).filter((it) => it.exId !== to || (!kept && (kept = true)));
+  }
+  for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) {
+    for (const e of sess.entries || []) if (e.exId === from) e.exId = to;
+    for (const pr of sess.prs || []) if (pr.exId === from) pr.exId = to;
+  }
+  for (const k of Object.keys(d.plans || {})) d.plans[k] = swap(d.plans[k]);
+  delete exs[from];
+}
+
+function cleanupA(d) {
   const exs = d.exercises || {}, days = d.days || [];
   const renames = {
     'hamstring-curls': ['Hamstring curls', 'Lying hamstring curls (on belly)'],
@@ -54,21 +94,7 @@ function cleanupExercises(d) {
     'bench-leg-lunges': ['Bench leg lunges', 'Bulgarian split squats'],
   };
   for (const [id, [from, to]] of Object.entries(renames)) if (exs[id] && exs[id].name === from) exs[id].name = to;
-  const mergeInto = (from, to) => {
-    if (!exs[from]) return;
-    if (!exs[to]) exs[to] = { ...exs[from], id: to };
-    const swap = (list) => { if (!list) return list; const out = []; for (const id of list.map((x) => (x === from ? to : x))) if (!out.includes(id)) out.push(id); return out; };
-    for (const day of days) {
-      let kept = false; // keep one row of the merged exercise per day
-      day.items = day.items.map((it) => (it.exId === from ? { ...it, exId: to } : it)).filter((it) => it.exId !== to || (!kept && (kept = true)));
-    }
-    for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) {
-      for (const e of sess.entries || []) if (e.exId === from) e.exId = to;
-      for (const pr of sess.prs || []) if (pr.exId === from) pr.exId = to;
-    }
-    for (const k of Object.keys(d.plans || {})) d.plans[k] = swap(d.plans[k]);
-    delete exs[from];
-  };
+  const mergeInto = (from, to) => mergeExercise(d, from, to);
   // Fly machine warm-up gets its own exercise, so it no longer shares a row (and a tick) with the working sets.
   const chest = days.find((x) => x.id === 'chest');
   if (exs['fly-machine'] && chest && chest.items.some((it) => it.exId === 'fly-machine' && it.warmup)) {
@@ -88,7 +114,6 @@ function cleanupExercises(d) {
     }
   }
   d.migrations.push('cleanup-2026-11-26');
-  return d;
 }
 
 function load() {
