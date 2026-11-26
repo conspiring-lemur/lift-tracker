@@ -48,6 +48,12 @@ function cleanupExercises(d) {
   if (!d.migrations.includes('renames-2026-11-26b')) renamesB(d);
   if (!d.migrations.includes('renames-2026-11-26c')) renamesB(d, 'renames-2026-11-26c');
   if (!d.migrations.includes('fly-both-2026-11-26')) flyBoth(d);
+  if (!d.migrations.includes('fly-history-2026-11-26')) {
+    // Past fly workouts were all the regular Fly machine; some were flagged warm-up by the old shared row.
+    for (const sess of d.sessions || []) if (sess.date < '2026-11-26') for (const e of sess.entries || []) if (e.exId === 'fly-machine') e.warmup = false;
+    d.migrations.push('fly-history-2026-11-26');
+  }
+  for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) splitFly(sess, d);
   return d;
 }
 
@@ -89,6 +95,26 @@ function flyBoth(d) {
     }
   }
   d.migrations.push('fly-both-2026-11-26');
+}
+
+// Fly machine warm-up vs working sets in one workout: sets heavier than the warm-up weight (85 lbs unless
+// changed on Chest day) belong to the regular Fly machine, lighter ones to the warm-up. Fixes workouts logged
+// while the two shared a row, and heavy sets logged on the warm-up row. Safe to run again and again.
+function splitFly(sess, d = S) {
+  if (!sess || !sess.entries) return;
+  const chest = (d.days || []).find((x) => x.id === 'chest');
+  const limit = chest?.items.find((it) => it.exId === 'fly-machine-warm-up')?.baseline ?? 85;
+  const isWarm = (e) => e.exId === 'fly-machine-warm-up' || (e.exId === 'fly-machine' && e.warmup);
+  const mixed = sess.entries.filter(isWarm);
+  if (!mixed.length) return;
+  const heavy = [], light = [];
+  for (const e of mixed) for (const x of e.sets) ((x.w != null && x.w > limit) || (!x.done && e.exId === 'fly-machine') ? heavy : light).push(x);
+  const idx = sess.entries.indexOf(mixed[0]);
+  sess.entries = sess.entries.filter((e) => !isWarm(e));
+  let work = sess.entries.find((e) => e.exId === 'fly-machine');
+  if (heavy.length) { if (work) work.sets.push(...heavy); else sess.entries.splice(Math.min(idx, sess.entries.length), 0, (work = { exId: 'fly-machine', warmup: false, sets: heavy })); }
+  if (light.length) sess.entries.splice(Math.min(idx, sess.entries.length), 0, { exId: 'fly-machine-warm-up', warmup: true, sets: light, note: mixed[0].note });
+  for (const pr of sess.prs || []) if (pr.exId === 'fly-machine-warm-up') pr.exId = 'fly-machine';
 }
 
 // Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
@@ -366,6 +392,7 @@ function current() { return ui.editing ? S.sessions.find((s) => s.id === ui.edit
 function finishWorkout() {
   const s = current();
   if (!s) return;
+  splitFly(s);
   const prs = [];
   for (const e of s.entries) {
     const got = newPRs(e.exId, historySets(e.exId, s.id), doneSets(e));
