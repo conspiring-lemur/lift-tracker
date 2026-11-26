@@ -47,6 +47,7 @@ function cleanupExercises(d) {
   if (!d.migrations.includes('cleanup-2026-11-26')) cleanupA(d);
   if (!d.migrations.includes('renames-2026-11-26b')) renamesB(d);
   if (!d.migrations.includes('renames-2026-11-26c')) renamesB(d, 'renames-2026-11-26c');
+  if (!d.migrations.includes('fly-both-2026-11-26')) flyBoth(d);
   return d;
 }
 
@@ -68,6 +69,26 @@ function renamesB(d, flag = 'renames-2026-11-26b') {
   // If "Upright rows" was already added from Suggestions, fold it into the renamed Standing rows.
   if (exs['upright-rows'] && exs['standing-rows']) mergeExercise(d, 'upright-rows', 'standing-rows');
   d.migrations.push(flag);
+}
+
+// Chest day needs both Fly machine rows: the warm-up and the working exercise (Nate, 2026-11-26).
+// If the phone only had one fly row before the cleanup, that row became the warm-up and the working one vanished.
+function flyBoth(d) {
+  const exs = d.exercises || {}, chest = (d.days || []).find((x) => x.id === 'chest');
+  if (chest) {
+    if (!exs['fly-machine']) exs['fly-machine'] = { id: 'fly-machine', name: 'Fly machine', type: 'total', note: '' };
+    if (!exs['fly-machine-warm-up']) exs['fly-machine-warm-up'] = { id: 'fly-machine-warm-up', name: 'Fly machine (warm-up)', type: exs['fly-machine'].type, note: '' };
+    for (const it of chest.items) if (it.exId === 'fly-machine') it.warmup = false;
+    if (!chest.items.some((it) => it.exId === 'fly-machine-warm-up')) {
+      const at = chest.items.findIndex((it) => !it.warmup);
+      chest.items.splice(at < 0 ? chest.items.length : at, 0, { exId: 'fly-machine-warm-up', baseline: 85, warmup: true });
+    } else chest.items.find((it) => it.exId === 'fly-machine-warm-up').warmup = true;
+    if (!chest.items.some((it) => it.exId === 'fly-machine')) {
+      const after = chest.items.findIndex((it) => it.exId === 'single-arm-triceps-cable-pulls');
+      chest.items.splice(after < 0 ? chest.items.length : after + 1, 0, { exId: 'fly-machine', baseline: 100, warmup: false });
+    }
+  }
+  d.migrations.push('fly-both-2026-11-26');
 }
 
 // Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
