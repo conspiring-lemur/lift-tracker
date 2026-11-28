@@ -54,6 +54,7 @@ function cleanupExercises(d) {
     d.migrations.push('fly-history-2026-11-26');
   }
   if (!d.migrations.includes('hamstring-both-2026-11-28')) hamstringBoth(d);
+  if (!d.migrations.includes('decline-crunch-2026-11-28')) addDeclineCrunch(d);
   for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) splitFly(sess, d);
   return d;
 }
@@ -139,6 +140,21 @@ function hamstringBoth(d) {
     }
   }
   d.migrations.push('hamstring-both-2026-11-28');
+}
+
+// Decline crunch (Nate, 2026-11-28): legs up on a decline bench, crunch to the left, center and right.
+// Added to every day's core work, just before Core circuit.
+function addDeclineCrunch(d) {
+  const exs = d.exercises || {};
+  const found = Object.values(exs).find((x) => x.name.toLowerCase() === 'decline crunch');
+  const id = found ? found.id : 'decline-crunch';
+  if (!found) exs[id] = { id, name: 'Decline crunch', type: 'bw', note: 'Legs up on a decline bench. Crunch to the left, center and right.' };
+  for (const day of d.days || []) {
+    if (day.items.some((it) => it.exId === id)) continue;
+    const at = day.items.findIndex((it) => it.exId === 'core-circuit');
+    day.items.splice(at < 0 ? day.items.length : at, 0, { exId: id, baseline: null, warmup: false });
+  }
+  d.migrations.push('decline-crunch-2026-11-28');
 }
 
 // Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
