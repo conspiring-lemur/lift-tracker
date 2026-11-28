@@ -146,7 +146,8 @@ function hamstringBoth(d) {
 // Added to every day's core work, just before Core circuit.
 function addDeclineCrunch(d) {
   const exs = d.exercises || {};
-  const found = Object.values(exs).find((x) => x.name.toLowerCase() === 'decline crunch');
+  // Reuse one Nate already added by hand ("Decline crunch", "Decline crunches", ...), keeping its logged sets.
+  const found = Object.values(exs).find((x) => /^decline crunch(es)?\b/i.test(x.name.trim()));
   const id = found ? found.id : 'decline-crunch';
   if (!found) exs[id] = { id, name: 'Decline crunch', type: 'bw', note: 'Legs up on a decline bench. Crunch to the left, center and right.' };
   for (const day of d.days || []) {
