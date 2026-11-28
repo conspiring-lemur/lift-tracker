@@ -53,6 +53,7 @@ function cleanupExercises(d) {
     for (const sess of d.sessions || []) if (sess.date < '2026-11-26') for (const e of sess.entries || []) if (e.exId === 'fly-machine') e.warmup = false;
     d.migrations.push('fly-history-2026-11-26');
   }
+  if (!d.migrations.includes('hamstring-both-2026-11-28')) hamstringBoth(d);
   for (const sess of [...(d.sessions || []), ...(d.active ? [d.active] : [])]) splitFly(sess, d);
   return d;
 }
@@ -100,21 +101,44 @@ function flyBoth(d) {
 // Fly machine warm-up vs working sets in one workout: sets heavier than the warm-up weight (85 lbs unless
 // changed on Chest day) belong to the regular Fly machine, lighter ones to the warm-up. Fixes workouts logged
 // while the two shared a row, and heavy sets logged on the warm-up row. Safe to run again and again.
-function splitFly(sess, d = S) {
-  if (!sess || !sess.entries) return;
-  const chest = (d.days || []).find((x) => x.id === 'chest');
-  const limit = chest?.items.find((it) => it.exId === 'fly-machine-warm-up')?.baseline ?? 85;
-  const isWarm = (e) => e.exId === 'fly-machine-warm-up' || (e.exId === 'fly-machine' && e.warmup);
+// Pairs of [working id, warm-up id, day, default warm-up weight] that share this treatment.
+const WARM_PAIRS = [['fly-machine', 'fly-machine-warm-up', 'chest', 85], ['hamstring-curls', 'hamstring-curls-warm-up', 'leg', 75]];
+function splitFly(sess, d = S) { for (const pair of WARM_PAIRS) splitWarm(sess, d, ...pair); }
+function splitWarm(sess, d, workId, warmId, dayId, defLimit) {
+  if (!sess || !sess.entries || !(d.exercises || {})[warmId]) return;
+  const day = (d.days || []).find((x) => x.id === dayId);
+  const limit = day?.items.find((it) => it.exId === warmId)?.baseline ?? defLimit;
+  const isWarm = (e) => e.exId === warmId || (e.exId === workId && e.warmup);
   const mixed = sess.entries.filter(isWarm);
   if (!mixed.length) return;
   const heavy = [], light = [];
-  for (const e of mixed) for (const x of e.sets) ((x.w != null && x.w > limit) || (!x.done && e.exId === 'fly-machine') ? heavy : light).push(x);
+  for (const e of mixed) for (const x of e.sets) ((x.w != null && x.w > limit) || (!x.done && e.exId === workId) ? heavy : light).push(x);
   const idx = sess.entries.indexOf(mixed[0]);
   sess.entries = sess.entries.filter((e) => !isWarm(e));
-  let work = sess.entries.find((e) => e.exId === 'fly-machine');
-  if (heavy.length) { if (work) work.sets.push(...heavy); else sess.entries.splice(Math.min(idx, sess.entries.length), 0, (work = { exId: 'fly-machine', warmup: false, sets: heavy })); }
-  if (light.length) sess.entries.splice(Math.min(idx, sess.entries.length), 0, { exId: 'fly-machine-warm-up', warmup: true, sets: light, note: mixed[0].note });
-  for (const pr of sess.prs || []) if (pr.exId === 'fly-machine-warm-up') pr.exId = 'fly-machine';
+  let work = sess.entries.find((e) => e.exId === workId);
+  if (heavy.length) { if (work) work.sets.push(...heavy); else sess.entries.splice(Math.min(idx, sess.entries.length), 0, (work = { exId: workId, warmup: false, sets: heavy })); }
+  if (light.length) sess.entries.splice(Math.min(idx, sess.entries.length), 0, { exId: warmId, warmup: true, sets: light, note: mixed[0].note });
+  for (const pr of sess.prs || []) if (pr.exId === warmId) pr.exId = workId;
+}
+
+// Lying hamstring curls get a warm-up and a working version, like Fly machine (Nate, 2026-11-28).
+// Past hamstring sets are split by weight on load: above the warm-up weight is working, the rest warm-up.
+function hamstringBoth(d) {
+  const exs = d.exercises || {}, leg = (d.days || []).find((x) => x.id === 'leg');
+  if (exs['hamstring-curls']) {
+    if (/^Lying hamstring curls/.test(exs['hamstring-curls'].name)) exs['hamstring-curls'].name = 'Lying hamstring curls';
+    if (!exs['hamstring-curls-warm-up']) exs['hamstring-curls-warm-up'] = { id: 'hamstring-curls-warm-up', name: 'Lying hamstring curls (warm-up)', type: exs['hamstring-curls'].type, note: '' };
+    if (leg) {
+      const row = leg.items.find((it) => it.exId === 'hamstring-curls' && it.warmup);
+      if (row && !leg.items.some((it) => it.exId === 'hamstring-curls-warm-up')) row.exId = 'hamstring-curls-warm-up';
+      for (const it of leg.items) if (it.exId === 'hamstring-curls') it.warmup = false;
+      if (!leg.items.some((it) => it.exId === 'hamstring-curls')) {
+        const after = leg.items.findIndex((it) => it.exId === 'seated-leg-curls');
+        leg.items.splice(after < 0 ? leg.items.length : after, 0, { exId: 'hamstring-curls', baseline: null, warmup: false });
+      }
+    }
+  }
+  d.migrations.push('hamstring-both-2026-11-28');
 }
 
 // Moves every use of one exercise onto another: day menus, logged sets, PRs and plans.
